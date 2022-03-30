@@ -66,15 +66,16 @@ public:
 
     std::optional<NFToken>
     fetchNFToken(
-        ripple::uint256 tokenID,
-        std::uint32_t ledgerSequence,
+        ripple::uint256 const& tokenID,
+        std::uint32_t const ledgerSequence,
         boost::asio::yield_context& yield) const override;
 
-    std::optional<LedgerObject>
-    fetchNFTokenPage(
-        ripple::uint256 ledgerKeyMin,
-        ripple::uint256 ledgerKeyMax,
-        std::uint32_t ledgerSequence,
+    NFTokenTransactions
+    fetchNFTTransactions(
+        ripple::uint256 const& tokenID,
+        std::uint32_t const limit,
+        bool const forward,
+        std::optional<TransactionsCursor> const& cursorIn,
         boost::asio::yield_context& yield) const override;
 
     std::vector<LedgerObject>

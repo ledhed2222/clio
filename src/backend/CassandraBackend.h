@@ -615,7 +615,6 @@ private:
     CassandraPreparedStatement selectObject_;
     CassandraPreparedStatement selectLedgerPageKeys_;
     CassandraPreparedStatement selectLedgerPage_;
-    CassandraPreparedStatement selectNFTokenPage_;
     CassandraPreparedStatement upperBound2_;
     CassandraPreparedStatement getToken_;
     CassandraPreparedStatement insertSuccessor_;
@@ -628,8 +627,9 @@ private:
     CassandraPreparedStatement insertNFToken_;
     CassandraPreparedStatement selectNFToken_;
     CassandraPreparedStatement insertIssuerNFToken_;
-    CassandraPreparedStatement insertOwnerNFToken_;
     CassandraPreparedStatement insertNFTokenTx_;
+    CassandraPreparedStatement selectNFTokenTx_;
+    CassandraPreparedStatement selectNFTokenTxForward_;
     CassandraPreparedStatement insertLedgerHeader_;
     CassandraPreparedStatement insertLedgerHash_;
     CassandraPreparedStatement updateLedgerRange_;
@@ -885,15 +885,16 @@ public:
 
     std::optional<NFToken>
     fetchNFToken(
-        ripple::uint256 tokenID,
-        std::uint32_t ledgerSequence,
+        ripple::uint256 const& tokenID,
+        std::uint32_t const ledgerSequence,
         boost::asio::yield_context& yield) const override;
 
-    std::optional<LedgerObject>
-    fetchNFTokenPage(
-        ripple::uint256 ledgerKeyMin,
-        ripple::uint256 ledgerKeyMax,
-        std::uint32_t ledgerSequence,
+    NFTokenTransactions
+    fetchNFTTransactions(
+        ripple::uint256 const& tokenID,
+        std::uint32_t const limit,
+        bool const forward,
+        std::optional<TransactionsCursor> const& cursorIn,
         boost::asio::yield_context& yield) const override;
 
     // Synchronously fetch the object with key key, as of ledger with sequence
@@ -997,7 +998,7 @@ public:
         std::string&& transaction,
         std::string&& metadata) override;
 
-    virtual void
+    void
     writeNFTokens(std::vector<NFTokensData>&& data) override;
 
     void

@@ -217,17 +217,19 @@ private:
     fetchLedgerDataAndDiff(uint32_t sequence);
 
     /// Insert all of the extracted transactions into the ledger, returning
-    /// transactions related to accounts and NFTs.
+    /// transactions related to accounts, transactions related to NFTs, and
+    /// NFTs themselves for later processsing.
     /// @param ledger ledger to insert transactions into
     /// @param data data extracted from an ETL source
     /// @return struct that contains the neccessary info to write to the
-    /// account_transactions and nft_token_transactions tables in Postgres
+    /// account_transactions/account_tx and nft_token_transactions tables
     /// (mostly transaction hashes, corresponding nodestore hashes and affected
     /// accounts)
     InsertTransactionsResult
     insertTransactions(
         ripple::LedgerInfo const& ledger,
-        org::xrpl::rpc::v1::GetLedgerResponse& data);
+        org::xrpl::rpc::v1::GetLedgerResponse& data,
+        std::shared_ptr<BackendInterface> backend_);
 
     // TODO update this documentation
     /// Build the next ledger using the previous ledger and the extracted data.

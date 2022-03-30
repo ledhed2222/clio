@@ -68,10 +68,14 @@ struct NFTokenTransactions
 struct NFToken
 {
     ripple::uint256 tokenID;
-    uint32_t ledgerSequence;
+    std::uint32_t ledgerSequence;
     ripple::AccountID owner;
     bool isBurned;
+    std::optional<ripple::uint256> uri;
 
+    // clearly two tokens are the same if they have the same ID, but this
+    // struct stores the state of a given token at a given ledger sequence, so
+    // we also need to compare with ledgerSequence
     bool
     operator==(NFToken const& other) const
     {

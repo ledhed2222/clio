@@ -1,7 +1,10 @@
+#include <ripple/app/tx/impl/details/NFTokenUtils.h>
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
-#include <backend/PostgresBackend.h>
 #include <thread>
+
+#include <backend/PostgresBackend.h>
+
 namespace Backend {
 
 // Type alias for async completion handlers
@@ -182,8 +185,8 @@ PostgresBackend::writeNFTokens(std::vector<NFTokensData>&& data)
     {
         nfTokensBuffer_ << "\\\\x" << record.tokenID << '\t'
                         << std::to_string(record.ledgerSequence) << '\t'
-                        << "\\\\x" << record.issuer << '\t' << "\\\\x"
-                        << record.owner << '\t'
+                        << "\\\\x" << ripple::nft::getIssuer(record.tokenID)
+                        << '\t' << "\\\\x" << record.owner << '\t'
                         << (record.isBurned ? "true" : "false") << '\n';
     }
 }
@@ -457,8 +460,8 @@ PostgresBackend::fetchAllTransactionHashesInLedger(
 
 std::optional<NFToken>
 PostgresBackend::fetchNFToken(
-    ripple::uint256 tokenID,
-    std::uint32_t ledgerSequence,
+    ripple::uint256 const& tokenID,
+    std::uint32_t const ledgerSequence,
     boost::asio::yield_context& yield) const
 {
     PgQuery pgQuery(pgPool_);
@@ -482,32 +485,6 @@ PostgresBackend::fetchNFToken(
     result.owner = response.asAccountID(0, 1);
     result.isBurned = response.asBool(0, 2);
     return result;
-}
-
-std::optional<LedgerObject>
-PostgresBackend::fetchNFTokenPage(
-    ripple::uint256 ledgerKeyMin,
-    ripple::uint256 ledgerKeyMax,
-    std::uint32_t ledgerSequence,
-    boost::asio::yield_context& yield) const
-{
-    PgQuery pgQuery(pgPool_);
-    pgQuery(set_timeout, yield);
-    std::stringstream sql;
-    sql << "SELECT key,object"
-        << " FROM objects WHERE"
-        << " ledger_seq = " << std::to_string(ledgerSequence) << " AND"
-        << " key >= \'\\x" << ripple::strHex(ledgerKeyMin) << "\' AND"
-        << " key <= \'\\x" << ripple::strHex(ledgerKeyMax) << "\'"
-        << " ORDER BY key ASC LIMIT 1";
-    auto response = pgQuery(sql.str().data(), yield);
-    size_t numRows = checkResult(response, 2);
-    if (!numRows)
-    {
-        return {};
-    }
-
-    return LedgerObject{response.asUInt256(0, 0), response.asUnHexedBlob(0, 1)};
 }
 
 std::optional<ripple::uint256>
@@ -728,6 +705,85 @@ PostgresBackend::fetchLedgerDiff(
     return {};
 }
 
+NFTokenTransactions
+PostgresBackend::fetchNFTTransactions(
+    ripple::uint256 const& tokenID,
+    std::uint32_t const limit,
+    bool forward,
+    std::optional<TransactionsCursor> const& cursor,
+    boost::asio::yield_context& yield) const
+{
+    PgQuery pgQuery(pgPool_);
+    pgQuery(set_timeout, yield);
+    pg_params dbParams;
+
+    char const*& command = dbParams.first;
+    std::vector<std::optional<std::string>>& values = dbParams.second;
+    command =
+        "SELECT nft_tx($1::bytea, $2::bigint, $3::bool, "
+        "$4::bigint, $5::bigint)";
+    values.resize(5);
+    values[0] = "\\x" + ripple::strHex(tokenID);
+
+    values[1] = std::to_string(limit);
+
+    values[2] = std::to_string(forward);
+
+    if (cursor)
+    {
+        values[3] = std::to_string(cursor->ledgerSequence);
+        values[4] = std::to_string(cursor->transactionIndex);
+    }
+    for (size_t i = 0; i < values.size(); ++i)
+    {
+        BOOST_LOG_TRIVIAL(debug) << "value " << std::to_string(i) << " = "
+                                 << (values[i] ? values[i].value() : "null");
+    }
+
+    auto start = std::chrono::system_clock::now();
+    auto res = pgQuery(dbParams, yield);
+    auto end = std::chrono::system_clock::now();
+
+    auto duration = ((end - start).count()) / 1000000000.0;
+    BOOST_LOG_TRIVIAL(info)
+        << __func__ << " : executed stored_procedure in "
+        << std::to_string(duration)
+        << " num records = " << std::to_string(checkResult(res, 1));
+
+    checkResult(res, 1);
+
+    char const* resultStr = res.c_str();
+    BOOST_LOG_TRIVIAL(debug) << __func__ << " : "
+                             << "postgres result = " << resultStr
+                             << " : token_id = " << ripple::strHex(tokenID);
+
+    boost::json::value raw = boost::json::parse(resultStr);
+    boost::json::object responseObj = raw.as_object();
+    BOOST_LOG_TRIVIAL(debug) << " parsed = " << responseObj;
+    if (responseObj.contains("transactions"))
+    {
+        auto txns = responseObj.at("transactions").as_array();
+        std::vector<ripple::uint256> hashes;
+        for (auto& hashHex : txns)
+        {
+            ripple::uint256 hash;
+            if (hash.parseHex(hashHex.at("hash").as_string().c_str() + 2))
+                hashes.push_back(hash);
+        }
+        if (responseObj.contains("cursor"))
+        {
+            return {
+                fetchTransactions(hashes, yield),
+                {{responseObj.at("cursor").at("ledger_sequence").as_int64(),
+                  responseObj.at("cursor")
+                      .at("transaction_index")
+                      .as_int64()}}};
+        }
+        return {fetchTransactions(hashes, yield), {}};
+    }
+    return {{}, {}};
+}
+
 AccountTransactions
 PostgresBackend::fetchAccountTransactions(
     ripple::AccountID const& account,
@@ -812,6 +868,7 @@ PostgresBackend::open(bool readOnly)
 {
     initSchema(pgPool_);
     initAccountTx(pgPool_);
+    initNFTTx(pgPool_);
 }
 
 void
