@@ -9,13 +9,6 @@
 
 #include <backend/BackendInterface.h>
 
-std::pair<std::vector<NFTokenTransactionsData>, std::optional<NFTokensData>>
-getNFTokenData(
-    ripple::TxMeta const& txMeta,
-    ripple::STTx const& sttx,
-    ripple::LedgerIndex seq,
-    std::shared_ptr<BackendInterface> backend_);
-
 /// This datastructure is used to keep track of the sequence of the most recent
 /// ledger validated by the network. There are two methods that will wait until
 /// certain conditions are met. This datastructure is able to be "stopped". When

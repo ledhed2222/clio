@@ -1549,6 +1549,7 @@ $$ LANGUAGE plpgsql;
 
 )";
 
+// TODO - this should be generalized for nft_tx and account_tx
 static constexpr char const* nftTxSchema = R"(
 
 -- nft_tx() RPC helper. From the rippled reporting process, only the

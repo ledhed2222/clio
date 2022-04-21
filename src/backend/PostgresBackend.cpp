@@ -81,15 +81,14 @@ PostgresBackend::writeAccountTransactions(
 }
 
 void
-PostgresBackend::writeNFTokenTransactions(
-    std::vector<NFTokenTransactionsData>&& data)
+PostgresBackend::writeNFTTransactions(std::vector<NFTTransactionsData>&& data)
 {
     if (abortWrite_)
     {
         return;
     }
     PgQuery pg(pgPool_);
-    for (NFTokenTransactionsData const& record : data)
+    for (NFTTransactionsData const& record : data)
     {
         nfTokenTxBuffer_ << "\\\\x" << record.tokenID << '\t'
                          << std::to_string(record.ledgerSequence) << '\t'
@@ -174,14 +173,14 @@ PostgresBackend::writeTransaction(
 }
 
 void
-PostgresBackend::writeNFTokens(std::vector<NFTokensData>&& data)
+PostgresBackend::writeNFTs(std::vector<NFTsData>&& data)
 {
     if (abortWrite_)
     {
         return;
     }
     PgQuery pg(pgPool_);
-    for (NFTokensData const& record : data)
+    for (NFTsData const& record : data)
     {
         nfTokensBuffer_ << "\\\\x" << record.tokenID << '\t'
                         << std::to_string(record.ledgerSequence) << '\t'
@@ -458,8 +457,8 @@ PostgresBackend::fetchAllTransactionHashesInLedger(
     return {};
 }
 
-std::optional<NFToken>
-PostgresBackend::fetchNFToken(
+std::optional<NFT>
+PostgresBackend::fetchNFT(
     ripple::uint256 const& tokenID,
     std::uint32_t const ledgerSequence,
     boost::asio::yield_context& yield) const
@@ -473,13 +472,10 @@ PostgresBackend::fetchNFToken(
         << " ledger_seq <= " << std::to_string(ledgerSequence)
         << " ORDER BY ledger_seq DESC LIMIT 1";
     auto response = pgQuery(sql.str().data(), yield);
-    size_t numRows = checkResult(response, 3);
-    if (!numRows)
-    {
+    if (!checkResult(response, 3))
         return {};
-    }
 
-    NFToken result;
+    NFT result;
     result.tokenID = tokenID;
     result.ledgerSequence = response.asBigInt(0, 0);
     result.owner = response.asAccountID(0, 1);
@@ -705,7 +701,9 @@ PostgresBackend::fetchLedgerDiff(
     return {};
 }
 
-NFTokenTransactions
+// TODO this implementation and fetchAccountTransactions should be
+// generalized
+TransactionsAndCursor
 PostgresBackend::fetchNFTTransactions(
     ripple::uint256 const& tokenID,
     std::uint32_t const limit,
@@ -784,7 +782,7 @@ PostgresBackend::fetchNFTTransactions(
     return {{}, {}};
 }
 
-AccountTransactions
+TransactionsAndCursor
 PostgresBackend::fetchAccountTransactions(
     ripple::AccountID const& account,
     std::uint32_t const limit,

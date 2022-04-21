@@ -34,14 +34,14 @@ struct AccountTransactionsData
 
 /// Represents a link from a tx to an NFT that was targeted/modified/created
 /// by it. Gets written to nf_token_transactions table and the like.
-struct NFTokenTransactionsData
+struct NFTTransactionsData
 {
     ripple::uint256 tokenID;
     std::uint32_t ledgerSequence;
     std::uint32_t transactionIndex;
     ripple::uint256 txHash;
 
-    NFTokenTransactionsData(
+    NFTTransactionsData(
         ripple::uint256 const& tokenID,
         ripple::TxMeta const& meta,
         ripple::uint256 const& txHash)
@@ -51,20 +51,11 @@ struct NFTokenTransactionsData
         , txHash(txHash)
     {
     }
-
-    bool
-    operator==(NFTokenTransactionsData const& other) const
-    {
-        return tokenID == other.tokenID &&
-            ledgerSequence == other.ledgerSequence &&
-            transactionIndex == other.transactionIndex &&
-            txHash == other.txHash;
-    }
 };
 
 /// Represents an NFT state at a particular ledger. Gets written to nf_tokens
 /// table and the like.
-struct NFTokensData
+struct NFTsData
 {
     ripple::uint256 tokenID;
     std::uint32_t ledgerSequence;
@@ -78,7 +69,7 @@ struct NFTokensData
     ripple::AccountID owner;
     bool isBurned;
 
-    NFTokensData(
+    NFTsData(
         ripple::uint256 const& tokenID,
         ripple::AccountID const& owner,
         ripple::TxMeta const& meta,

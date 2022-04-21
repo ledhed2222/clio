@@ -30,13 +30,12 @@ toString(ripple::LedgerInfo const& info)
 }
 }  // namespace detail
 
-InsertTransactionsResult
+FormattedTransactionsData
 ReportingETL::insertTransactions(
     ripple::LedgerInfo const& ledger,
-    org::xrpl::rpc::v1::GetLedgerResponse& data,
-    std::shared_ptr<BackendInterface> backend_)
+    org::xrpl::rpc::v1::GetLedgerResponse& data)
 {
-    InsertTransactionsResult result;
+    FormattedTransactionsData result;
 
     for (auto& txn :
          *(data.mutable_transactions_list()->mutable_transactions()))
@@ -53,11 +52,10 @@ ReportingETL::insertTransactions(
         ripple::TxMeta txMeta{
             sttx.getTransactionID(), ledger.seq, txn.metadata_blob()};
 
-        auto [nftTxs, maybeNFT] =
-            getNFTokenData(txMeta, sttx, ledger.seq, backend_);
+        auto const [nftTxs, maybeNFT] = getNFTData(txMeta, sttx, ledger.seq);
         result.nfTokenTxData.insert(
             result.nfTokenTxData.end(), nftTxs.begin(), nftTxs.end());
-        if (maybeNFT.has_value())
+        if (maybeNFT)
             result.nfTokensData.push_back(*maybeNFT);
 
         auto journal = ripple::debugLog();
@@ -72,20 +70,20 @@ ReportingETL::insertTransactions(
             std::move(*txn.mutable_metadata_blob()));
     }
 
-    // Remove all but the last NFTokensData for each id. unique removes all
+    // Remove all but the last NFTsData for each id. unique removes all
     // but the first of a group, so we want to reverse sort by transaction
     // index
     std::sort(
         result.nfTokensData.begin(),
         result.nfTokensData.end(),
-        [](NFTokensData const& a, NFTokensData const& b) {
+        [](NFTsData const& a, NFTsData const& b) {
             return a.tokenID > b.tokenID &&
                 a.transactionIndex > b.transactionIndex;
         });
     auto last = std::unique(
         result.nfTokensData.begin(),
         result.nfTokensData.end(),
-        [](NFTokensData const& a, NFTokensData const& b) {
+        [](NFTsData const& a, NFTsData const& b) {
             return a.tokenID == b.tokenID;
         });
     result.nfTokensData.erase(last, result.nfTokensData.end());
@@ -131,8 +129,8 @@ ReportingETL::loadInitialLedger(uint32_t startingSequence)
         lgrInfo, std::move(*ledgerData->mutable_ledger_header()));
 
     BOOST_LOG_TRIVIAL(debug) << __func__ << " wrote ledger";
-    InsertTransactionsResult insertTxResult =
-        insertTransactions(lgrInfo, *ledgerData, backend_);
+    FormattedTransactionsData insertTxResult =
+        insertTransactions(lgrInfo, *ledgerData);
     BOOST_LOG_TRIVIAL(debug) << __func__ << " inserted txns";
 
     // download the full account state map. This function downloads full ledger
@@ -147,9 +145,8 @@ ReportingETL::loadInitialLedger(uint32_t startingSequence)
     {
         backend_->writeAccountTransactions(
             std::move(insertTxResult.accountTxData));
-        backend_->writeNFTokens(std::move(insertTxResult.nfTokensData));
-        backend_->writeNFTokenTransactions(
-            std::move(insertTxResult.nfTokenTxData));
+        backend_->writeNFTs(std::move(insertTxResult.nfTokensData));
+        backend_->writeNFTTransactions(std::move(insertTxResult.nfTokenTxData));
     }
     backend_->finishWrites(startingSequence);
 
@@ -543,15 +540,15 @@ ReportingETL::buildNextLedger(org::xrpl::rpc::v1::GetLedgerResponse& rawData)
         << __func__ << " : "
         << "Inserted/modified/deleted all objects. Number of objects = "
         << rawData.ledger_objects().objects_size();
-    InsertTransactionsResult insertTxResult =
-        insertTransactions(lgrInfo, rawData, backend_);
+    FormattedTransactionsData insertTxResult =
+        insertTransactions(lgrInfo, rawData);
     BOOST_LOG_TRIVIAL(debug)
         << __func__ << " : "
         << "Inserted all transactions. Number of transactions  = "
         << rawData.transactions_list().transactions_size();
     backend_->writeAccountTransactions(std::move(insertTxResult.accountTxData));
-    backend_->writeNFTokens(std::move(insertTxResult.nfTokensData));
-    backend_->writeNFTokenTransactions(std::move(insertTxResult.nfTokenTxData));
+    backend_->writeNFTs(std::move(insertTxResult.nfTokensData));
+    backend_->writeNFTTransactions(std::move(insertTxResult.nfTokenTxData));
     BOOST_LOG_TRIVIAL(debug) << __func__ << " : "
                              << "wrote account_tx";
     auto start = std::chrono::system_clock::now();

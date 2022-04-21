@@ -481,6 +481,8 @@ public:
         return {first, second};
     }
 
+    // TODO: should be replaced with a templated implementation as is very
+    // similar to other getters
     bool
     getBool()
     {
@@ -624,12 +626,12 @@ private:
     CassandraPreparedStatement insertAccountTx_;
     CassandraPreparedStatement selectAccountTx_;
     CassandraPreparedStatement selectAccountTxForward_;
-    CassandraPreparedStatement insertNFToken_;
-    CassandraPreparedStatement selectNFToken_;
-    CassandraPreparedStatement insertIssuerNFToken_;
-    CassandraPreparedStatement insertNFTokenTx_;
-    CassandraPreparedStatement selectNFTokenTx_;
-    CassandraPreparedStatement selectNFTokenTxForward_;
+    CassandraPreparedStatement insertNFT_;
+    CassandraPreparedStatement selectNFT_;
+    CassandraPreparedStatement insertIssuerNFT_;
+    CassandraPreparedStatement insertNFTTx_;
+    CassandraPreparedStatement selectNFTTx_;
+    CassandraPreparedStatement selectNFTTxForward_;
     CassandraPreparedStatement insertLedgerHeader_;
     CassandraPreparedStatement insertLedgerHash_;
     CassandraPreparedStatement updateLedgerRange_;
@@ -714,7 +716,7 @@ public:
         open_ = false;
     }
 
-    AccountTransactions
+    TransactionsAndCursor
     fetchAccountTransactions(
         ripple::AccountID const& account,
         std::uint32_t const limit,
@@ -883,13 +885,13 @@ public:
         std::uint32_t const ledgerSequence,
         boost::asio::yield_context& yield) const override;
 
-    std::optional<NFToken>
-    fetchNFToken(
+    std::optional<NFT>
+    fetchNFT(
         ripple::uint256 const& tokenID,
         std::uint32_t const ledgerSequence,
         boost::asio::yield_context& yield) const override;
 
-    NFTokenTransactions
+    TransactionsAndCursor
     fetchNFTTransactions(
         ripple::uint256 const& tokenID,
         std::uint32_t const limit,
@@ -987,8 +989,7 @@ public:
         std::vector<AccountTransactionsData>&& data) override;
 
     void
-    writeNFTokenTransactions(
-        std::vector<NFTokenTransactionsData>&& data) override;
+    writeNFTTransactions(std::vector<NFTTransactionsData>&& data) override;
 
     void
     writeTransaction(
@@ -999,7 +1000,7 @@ public:
         std::string&& metadata) override;
 
     void
-    writeNFTokens(std::vector<NFTokensData>&& data) override;
+    writeNFTs(std::vector<NFTsData>&& data) override;
 
     void
     startWrites() const override

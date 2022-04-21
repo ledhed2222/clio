@@ -19,14 +19,24 @@
 
 #include <chrono>
 
+/**
+ * Helper function for the ReportingETL, implemented in NFTHelpers.cpp, to
+ * pull to-write data out of a transaction that relates to NFTs.
+ */
+std::pair<std::vector<NFTTransactionsData>, std::optional<NFTsData>>
+getNFTData(
+    ripple::TxMeta const& txMeta,
+    ripple::STTx const& sttx,
+    ripple::LedgerIndex seq);
+
 struct AccountTransactionsData;
-struct NFTokenTransactionsData;
-struct NFTokensData;
-struct InsertTransactionsResult
+struct NFTTransactionsData;
+struct NFTsData;
+struct FormattedTransactionsData
 {
     std::vector<AccountTransactionsData> accountTxData;
-    std::vector<NFTokenTransactionsData> nfTokenTxData;
-    std::vector<NFTokensData> nfTokensData;
+    std::vector<NFTTransactionsData> nfTokenTxData;
+    std::vector<NFTsData> nfTokensData;
 };
 class SubscriptionManager;
 
@@ -225,11 +235,10 @@ private:
     /// account_transactions/account_tx and nft_token_transactions tables
     /// (mostly transaction hashes, corresponding nodestore hashes and affected
     /// accounts)
-    InsertTransactionsResult
+    FormattedTransactionsData
     insertTransactions(
         ripple::LedgerInfo const& ledger,
-        org::xrpl::rpc::v1::GetLedgerResponse& data,
-        std::shared_ptr<BackendInterface> backend_);
+        org::xrpl::rpc::v1::GetLedgerResponse& data);
 
     // TODO update this documentation
     /// Build the next ledger using the previous ledger and the extracted data.
